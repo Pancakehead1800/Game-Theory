@@ -8,6 +8,7 @@ class PayoffMatrix:
     ):
         # 2 x 2 payoff matrix
         # Rows are player 1, columns are player 2
+        # The class uses matrix[row][col][player] for indexing
         self.payoff_matrix = payoff_matrix
 
         # Action labels
@@ -148,7 +149,8 @@ class PayoffMatrix:
 
 
 if __name__ == "__main__":
-    # The class uses matrix[row][col][player]
+
+    # Example matrix from a Prisoner's Dilemma situation
     test_matrix = [
         [[2, 2], [-1, 3]],
         [[3, -1], [0, 0]]
