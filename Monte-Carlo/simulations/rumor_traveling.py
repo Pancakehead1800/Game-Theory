@@ -18,9 +18,12 @@ def simulate_rumor(N: int = 100):
     # Random number generator
     rng = np.random.default_rng()
 
+    cnts = [1]
+
     # Iterate through the days until everyone knows
     days = 0
     while not np.all(gnomes):
+        cnts.append(gnomes.sum())
         days += 1
 
         # # Everyone chooses someone to contact
@@ -29,11 +32,12 @@ def simulate_rumor(N: int = 100):
         # # People who know the rumor will spread it to the perosn they contact
         gnomes[choices[gnomes == True]] = True
 
-    return days
+    cnts.append(gnomes.sum())
+    return days, np.array(cnts)
 
 
 # ============ GRAPHING ============ # 
-def graph_results(days): 
+def graph_days(days): 
     """Graph the distribution of the number of days.""" 
     plt.figure(figsize=(9, 5)) 
     plt.hist( days, bins=np.arange(days.min() - 0.5, days.max() + 1.5, 1), edgecolor="black" ) 
@@ -45,17 +49,47 @@ def graph_results(days):
     plt.tight_layout() 
     plt.show()
 
+def graph_cnts(cnts_lists):
+    # Find longest simulation
+    max_len = max(len(cnts) for cnts in cnts_lists)
+
+    # Create a matrix filled with NaN
+    cnts_matrix = np.full((len(cnts_lists), max_len), np.nan)
+
+    # Put each simulation into one row
+    for i, cnts in enumerate(cnts_lists):
+        cnts_matrix[i, :len(cnts)] = cnts
+
+    # Average across simulations
+    average_cnts = np.nanmean(cnts_matrix, axis=0)
+
+    # Plot
+    plt.figure(figsize=(9, 5))
+    plt.plot(average_cnts, marker="o", label="Average")
+    plt.title("Average Rumor Spread")
+    plt.xlabel("Day")
+    plt.ylabel("Number of People Who Know the Rumor")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 
 # ============ EXECUTION ============ # 
 if __name__ == "__main__":
 
     # Values of choice
-    trials = 100_000
+    trials = 10_000
     N = 1000
 
     # Run the simulations
-    days = np.array([simulate_rumor(N=N) for _ in range(trials)])
-    # graph_results(days)
+    results = [simulate_rumor(N=N) for _ in range(trials)]
+
+    days = np.array([result[0] for result in results])
+    cnts = [result[1] for result in results]
+
+    graph_days(days)
+    graph_cnts(cnts)
 
     # Get the Mean and Standard Deviation
     mean = days.mean()
