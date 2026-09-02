@@ -23,7 +23,7 @@ class MonteCarlo:
 
     # Simulate all the trials
     def simulate_trials(self):
-        estimates = np.array([self.trial_function(n=self.n) for _ in range(self.trials)])
+        estimates = np.array([self.trial_function(self.n) for _ in range(self.trials)])
 
         # Store the result of the first trial
         if self.estimates == None:
