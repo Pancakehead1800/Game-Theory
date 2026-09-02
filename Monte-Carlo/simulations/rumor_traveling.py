@@ -24,11 +24,11 @@ def simulate_rumor(N: int = 100):
     while not np.all(gnomes):
         days += 1
 
-        # Everyone chooses someone to contact
+        # # Everyone chooses someone to contact
         choices = rng.integers(low=0, high=N, size=N)
 
-        # People who know the rumor will spread it to the perosn they contact
-        gnomes[choices[gnomes == 1]] = True
+        # # People who know the rumor will spread it to the perosn they contact
+        gnomes[choices[gnomes == True]] = True
 
     return days
 
@@ -50,12 +50,12 @@ def graph_results(days):
 if __name__ == "__main__":
 
     # Values of choice
-    trials = 10000
+    trials = 10_000
     N = 100
 
     # Run the simulations
     days = np.array([simulate_rumor(N=100) for _ in range(trials)])
-    graph_results(days)
+    # graph_results(days)
 
     # Get the Mean and Standard Deviation
     mean = days.mean()
