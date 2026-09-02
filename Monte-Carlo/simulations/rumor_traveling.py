@@ -11,7 +11,6 @@ def simulate_rumor(N: int = 100):
     Output: int = the days it takes for the rumor to reach everyone
     """
 
-
     # The people who know the rumor
     gnomes = np.zeros(N, dtype=bool)
     gnomes[0] = True
@@ -47,14 +46,15 @@ def graph_results(days):
     plt.show()
 
 
+# ============ EXECUTION ============ # 
 if __name__ == "__main__":
 
     # Values of choice
-    trials = 10_000
-    N = 100
+    trials = 100_000
+    N = 1000
 
     # Run the simulations
-    days = np.array([simulate_rumor(N=100) for _ in range(trials)])
+    days = np.array([simulate_rumor(N=N) for _ in range(trials)])
     # graph_results(days)
 
     # Get the Mean and Standard Deviation
