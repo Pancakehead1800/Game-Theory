@@ -26,10 +26,11 @@ def simulate_rumor(N: int = 100):
         cnts.append(gnomes.sum())
         days += 1
 
-        # # Everyone chooses someone to contact
-        choices = rng.integers(low=0, high=N, size=N)
+        # Everyone chooses someone else (excluding themself) to contact
+        choices = rng.integers(low=0, high=N-1, size=N)
+        choices += (choices >= np.arange(N))
 
-        # # People who know the rumor will spread it to the perosn they contact
+        # People who know the rumor will spread it to the perosn they contact
         gnomes[choices[gnomes == True]] = True
 
     cnts.append(gnomes.sum())
