@@ -1,162 +1,200 @@
 
+from dataclasses import dataclass
+from pprint import pprint
+from collections import defaultdict
+import numpy as np
+from decision_rules import (
+    GreedyBestRule,
+    UniformBestRule,
+    RandomBeneficialRule,
+)
+
+"""
+Payoff Matrix Arguments
+1. matrix: An NxNx2 Numpy array representing the payoff matrix
+2. player: A tuple (p1:float, p2:float) representing the probability that player 1 or 2 responds first
+3. rule:   Which decision rule players will use (see list above)
+"""
+
+"""
+Total list of strategies (not all implemented yet):
+1. Best (maximize utility difference OR uniform choice)
+2. Minimax (look ahead a few steps)
+3. Ranking (give the moves probability proportionate to ranking)
+4. Naive-Random (uniformly choose between actions of higher utility)
+5. Pure-Random (Uniformly choose any move)
+"""
+
+@dataclass
+class Edge:
+    target: tuple[int, int]
+    probability: float
+    player: int
+    pre_utility: int
+    post_utility: int
+
+
 
 class PayoffMatrix:
     def __init__(
-        self, 
-        payoff_matrix: list[list[list[float, float]]]=None,
-        actions: list[str]=["Action 1A", "Action 1B", "Action 2A", "Action 2B"]
+        self,
+        matrix,
+        players=None,
+        rules=None
     ):
-        # 2 x 2 payoff matrix
-        # Rows are player 1, columns are player 2
-        # The class uses matrix[row][col][player] for indexing
-        self.payoff_matrix = payoff_matrix
 
-        # Action labels
-        # First 2 are for player 1, second 2 are for player 2
-        self.actions = actions
+        # -------- CREATE MATRIX -------- #
+        self.matrix = matrix
+        if self.matrix is not None:
+            # Hope the values are floats
+            try:
+                self.matrix = np.array(matrix, dtype=float)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Data contains non-numeric entries: {e}")
 
-        # Dominant Strategies
-        self.p1_dominant = None
-        self.p2_dominant = None
+            # Verify the array has 3 dimensions
+            if self.matrix.ndim != 3:
+                raise ValueError(f"Expected 3D array, but got {self.matrix.ndim}D array")
 
-        # Nash Equilibria
-        self.equilibria = None
-
-
-    # Find Dominant Strategies for both players (if any)
-    def find_dominant_strategies(self):
-        # Goal is to maximize utility
-
-        player_1_dominant: int = None
-        player_2_dominant: int = None
-
-        # -------- Player 1 --------
-        # We must check if Action 1A has better/worse utility in both columns compared to Action 1B
-        # Difference: (Action 1 Utility) - (Action 2 Utility)
-        col_1_diff = self.payoff_matrix[0][0][0] - self.payoff_matrix[1][0][0]
-        col_2_diff = self.payoff_matrix[0][1][0] - self.payoff_matrix[1][1][0]
-
-        if col_1_diff > 0 and col_2_diff > 0:
-            player_1_dominant = self.actions[0] # Action 1A
-        elif col_1_diff < 0 and col_2_diff < 0:
-            player_1_dominant = self.actions[1] # Action 1B
+            # Verify the final dimension is 2 (for 2x2 players)
+            if self.matrix.shape[2] != 2:
+                raise ValueError(f"Expected the last dimension to be 2, but got {self.matrix.shape[2]} (Shape: {self.matrix.shape})")
         else:
-            player_1_dominant = None
+            self.matrix = self.get_payoff_matrix()
+
+        # -------- CREATE PLAYER PROBABILITIES -------- #
+        # self.matrix.shape = (m, n, 2)
+        self.m = self.matrix.shape[0]
+        self.n = self.matrix.shape[1]
+
+        # -------- CREATE PLAYER PROBABILITIES -------- #
+        self.players = players
+        if self.players is None:
+            self.players = (0.5, 0.5)
 
 
-        # -------- Player 2 --------
-        # Same process, but with Player 2
-        row_1_diff = self.payoff_matrix[0][0][1] - self.payoff_matrix[0][1][1]
-        row_2_diff = self.payoff_matrix[1][0][1] - self.payoff_matrix[1][1][1]
+        # -------- CREATE PLAYER RULES -------- #
+        self.rules = rules
+        if self.rules is None:
+            self.rules = (GreedyBestRule(), GreedyBestRule())
 
-        if row_1_diff > 0 and row_2_diff > 0:
-            player_2_dominant = self.actions[2] # Action 2A
-        elif row_1_diff < 0 and row_2_diff < 0:
-            player_2_dominant = self.actions[3] # Action 2B
+
+
+    # Returns given player's utility for given state
+    def utility(self, state, player):
+        row, col = state
+        return self.matrix[row][col][player]
+
+
+
+    # Returns array of alternate utilities that the given player can reach if the other player stays fixed
+    def utilities_for_player(self, state: tuple[int, int], player: int):
+        row, col = state
+
+        # The index of the np.array is the action number:
+        # utilities[Action] = Utility
+        if player == 0:
+            return self.matrix[:, col, 0]
+
+        elif player == 1:
+            return self.matrix[row, :, 1]
+
         else:
-            player_2_dominant = None
-
-        self.p1_dominant = player_1_dominant
-        self.p2_dominant = player_2_dominant
-        return (self.p1_dominant, self.p2_dominant)
+            raise ValueError(f"Player must be 0 or 1 (got {player})")
 
 
-    # Find all Nash Equilibria
-    def find_nash_equilibria(self):
-        equilibria = []
-        # -------- Check Top-Left --------
-        # Check Action 1B
-        if self.payoff_matrix[1][0][0] > self.payoff_matrix[0][0][0]:
-            # Check Action 2B
-            if self.payoff_matrix[0][1][1] > self.payoff_matrix[0][0][1]:
-                equilibria.append((self.actions[0], self.actions[2]))
 
-        # --------Check Top-Right --------
-        # Check Action 1B
-        if self.payoff_matrix[1][1][0] > self.payoff_matrix[0][1][0]:
-            # Check Action 2A
-            if self.payoff_matrix[0][0][1] > self.payoff_matrix[0][1][1]:
-                equilibria.append((self.actions[0], self.actions[3]))
-
-        
-        # --------Check Bottom-Left --------
-        # Check Action 1A
-        if self.payoff_matrix[0][0][0] > self.payoff_matrix[1][0][0]:
-            # Check Action 2B
-            if self.payoff_matrix[1][1][1] > self.payoff_matrix[1][0][1]:
-                equilibria.append((self.actions[1], self.actions[2]))
-
- 
-        # --------Check Bottom-Right --------
-        # Check Action 1A
-        if self.payoff_matrix[0][1][0] > self.payoff_matrix[1][1][0]:
-            # Check Action 2A
-            if self.payoff_matrix[1][0][1] > self.payoff_matrix[1][1][1]:
-                equilibria.append((self.actions[1], self.actions[3]))
-
-        self.equilibria = equilibria
-        return self.equilibria
-    
-
-    def print_summary(self):
-        entry_length = max(
-            [len(str(entry)) for row in self.payoff_matrix for entry in row] +
-            [len(label) for label in self.actions] +
-            [len("Action XX")]
-        )
-
-        # len(str(entry)) for row in self.payoff_matrix for entry in row)
-        if self.actions is None:
-            self.actions = ["Action 1A", "Action 2A", "Action 1B", "Action 2B"]
-
-        seperator = "-" * (entry_length + 2)
-        space = " " * (entry_length + 2)
-
-        # format strings
-        def fstr(s):
-            if type(s) is not str:
-                s = str(s)
-            return s + " " * (entry_length - len(s))
-
-        return (
-            f"{"=" * (3 * (entry_length + 2) + 7)}\n"
-            f"{"Payoff Matrix\n"}"
-            f"{"=" * (3 * (entry_length + 2) + 7)}\n"
-            f"{space}| {fstr(self.actions[2])} | {fstr(self.actions[3])} |\n"
-            f"{seperator}|{seperator}|{seperator}\n"
-            f" {fstr(self.actions[0])} | {fstr(self.payoff_matrix[0][0])} | {fstr(self.payoff_matrix[0][1])} |\n"
-            f"{seperator}|{seperator}|{seperator}\n"
-            f" {fstr(self.actions[1])} | {fstr(self.payoff_matrix[1][0])} | {fstr(self.payoff_matrix[1][1])} |\n"
-            f"{"=" * (3 * (entry_length + 2) + 7)}\n"
-            f"Player 1 Dominant Strategy: {self.p1_dominant}\n"
-            f"Player 2 Dominant Strategy: {self.p2_dominant}\n"
-            f"{"=" * (3 * (entry_length + 2) + 7)}\n"
-            f"Nash Equilibria: {self.equilibria}\n"
-            f"{"=" * (3 * (entry_length + 2) + 7)}\n"
-        )
-
-    def __repr__(self):
-        return self.print_summary()
+    # Returns array of probabilities
+    def get_player_action_probabilities(self, state, player):
+        probabilities = self.rules[player].distribution(self, state, player)
+        return probabilities
 
 
-    # Get the payoff matrix from the user
+
+    # # Determine action given probabilities
+    # def choose_user_action(self, probabilities) -> int:
+    #     action = np.random.choice(
+    #         len(probabilities),
+    #         p=probabilities
+    #     )
+    #     return action
+
+
+
+    # Return a weighted, directed graph using dfs
+    def simulate_state(self, state) -> dict[tuple: Edge]:
+        graph = defaultdict(list)
+        seen = set()
+
+        def dfs(state):
+            if state in seen:
+                return
+
+            seen.add(state)
+
+            # Add the next nodes and their probabilities to the graph
+            player_0_probabilities = self.get_player_action_probabilities(state, 0) * self.players[0]
+            player_1_probabilities = self.get_player_action_probabilities(state, 1) * self.players[1]
+
+            # Player 0 probabilities
+            for action, probability in enumerate(player_0_probabilities):
+                # tolerance is 5e-3 = 0.005 = 0.5%
+                if probability > 5e-3:
+                    target = (action, state[1])
+                    graph[state].append(Edge(
+                        target=target,
+                        probability=probability,
+                        player=0,
+                        pre_utility=self.utility(state, 0),
+                        post_utility=self.utility(target, 0)
+                    ))
+
+            # Player 1 probabilities
+            for action, probability in enumerate(player_1_probabilities):
+                if probability > 5e-3:
+                    target = (state[0], action)
+                    graph[state].append(Edge(
+                        target=target,
+                        probability=probability,
+                        player=1,
+                        pre_utility=self.utility(state, 1),
+                        post_utility=self.utility(target, 1)
+                    ))
+
+            # Perform dfs on next nodes
+            for action, _ in enumerate(player_0_probabilities):
+                next_state = (action, state[1])
+                dfs(next_state)
+
+            for action, _ in enumerate(player_1_probabilities):
+                next_state = (state[0], action)
+                dfs(next_state)
+
+        dfs(state)
+        return graph
+
+
+
+    # Prompts the user for the payoff matrix
     def get_payoff_matrix(self):
-        if self.payoff_matrix is None:
-            self.payoff_matrix = []
-            for _ in range(2):
-                self.payoff_matrix.append(list(map(float, input("Enter the row: ").split())))
+        pass
 
 
 
 if __name__ == "__main__":
+    import json
 
-    # Example matrix from a Prisoner's Dilemma situation
-    test_matrix = [
-        [[2, 2], [-1, 3]],
-        [[3, -1], [0, 0]]
-    ]
+    # Open the file and load its content
+    with open('text.json', 'r') as file:
+        matrix = json.load(file)
+        pprint(matrix)
+        print()
 
-    pm = PayoffMatrix(payoff_matrix=test_matrix)
-    pm.find_dominant_strategies()
-    pm.find_nash_equilibria()
-    print(pm)
+        pm = PayoffMatrix(
+            matrix=matrix,
+            players=(1,0),
+            rules=(UniformBestRule(), UniformBestRule())
+        )
+
+        test = pm.simulate_state((0,0))
+        pprint(test)
