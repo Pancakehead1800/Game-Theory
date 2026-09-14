@@ -60,7 +60,7 @@ class PayoffMatrix:
             if self.matrix.shape[2] != 2:
                 raise ValueError(f"Expected the last dimension to be 2, but got {self.matrix.shape[2]} (Shape: {self.matrix.shape})")
         else:
-            self.matrix = self.get_payoff_matrix()
+            raise ValueError("Please provide a payoff matrix! It should be size N x M x 2")
 
         # -------- CREATE PLAYER PROBABILITIES -------- #
         # self.matrix.shape = (m, n, 2)
@@ -110,17 +110,6 @@ class PayoffMatrix:
         return probabilities
 
 
-
-    # # Determine action given probabilities
-    # def choose_user_action(self, probabilities) -> int:
-    #     action = np.random.choice(
-    #         len(probabilities),
-    #         p=probabilities
-    #     )
-    #     return action
-
-
-
     # Return a weighted, directed graph using dfs
     def simulate_state(self, state) -> dict[tuple: Edge]:
         graph = defaultdict(list)
@@ -137,9 +126,9 @@ class PayoffMatrix:
             player_1_probabilities = self.get_player_action_probabilities(state, 1) * self.players[1]
 
             # Player 0 probabilities
+            tolerance = 5e-2
             for action, probability in enumerate(player_0_probabilities):
-                # tolerance is 5e-3 = 0.005 = 0.5%
-                if probability > 5e-3:
+                if probability > tolerance:
                     target = (action, state[1])
                     graph[state].append(Edge(
                         target=target,
@@ -151,7 +140,7 @@ class PayoffMatrix:
 
             # Player 1 probabilities
             for action, probability in enumerate(player_1_probabilities):
-                if probability > 5e-3:
+                if probability > tolerance:
                     target = (state[0], action)
                     graph[state].append(Edge(
                         target=target,
@@ -162,13 +151,15 @@ class PayoffMatrix:
                     ))
 
             # Perform dfs on next nodes
-            for action, _ in enumerate(player_0_probabilities):
-                next_state = (action, state[1])
-                dfs(next_state)
+            for action, probability in enumerate(player_0_probabilities):
+                if probability > tolerance:
+                    next_state = (action, state[1])
+                    dfs(next_state)
 
-            for action, _ in enumerate(player_1_probabilities):
-                next_state = (state[0], action)
-                dfs(next_state)
+            for action, probability in enumerate(player_1_probabilities):
+                if probability > tolerance:
+                    next_state = (state[0], action)
+                    dfs(next_state)
 
         dfs(state)
         return graph
@@ -187,13 +178,11 @@ if __name__ == "__main__":
     # Open the file and load its content
     with open('text.json', 'r') as file:
         matrix = json.load(file)
-        pprint(matrix)
-        print()
 
         pm = PayoffMatrix(
             matrix=matrix,
-            players=(1,0),
-            rules=(UniformBestRule(), UniformBestRule())
+            players=(0.5,0.5),
+            rules=(GreedyBestRule(), UniformBestRule())
         )
 
         test = pm.simulate_state((0,0))

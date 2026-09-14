@@ -20,12 +20,9 @@ class GreedyBestRule(DecisionRule):
         # Get the player's possible utilities
         utilities = game.utilities_for_player(state, player)
 
-        # Find the maximum possible utility
-        best_utility = utilities.max()
-
-        # Find the first occurance of the value
-        best_action = utilities == best_utility
-        probabilities = best_action.astype(float)
+        # Use the first occurence of the maximum utility
+        probabilities = np.zeros_like(utilities)
+        probabilities[np.argmax(utilities)] = 1.0
 
         return probabilities
 
