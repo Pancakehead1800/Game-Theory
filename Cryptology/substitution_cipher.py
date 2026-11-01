@@ -1,5 +1,5 @@
 
-from utils import check_permutation
+from Cryptology.utils.cryptology import check_permutation
 
 def substitution_encrypt(plaintext: list[int], permutation: list[int]):
 

@@ -1,5 +1,5 @@
 
-from utils import check_permutation, random_padding
+from Cryptology.utils.cryptology import check_permutation, random_padding
 
 
 def transpose_encrypt(plaintext: list[int], permutation: list[int]):

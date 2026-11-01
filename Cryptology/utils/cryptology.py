@@ -1,5 +1,11 @@
 
 import numpy as np
+import math
+from collections import Counter
+
+
+
+# ============ HELPFUL FUNCTIONS ============ #
 
 
 # Turn string of letters to numbers (ignoring non-alphabetic characters)
@@ -31,6 +37,7 @@ def decode_text(text: list) -> str:
             res += chr(char + ord('a'))
 
     return res
+
         
 
 # Count frequencies of characters
@@ -63,3 +70,29 @@ def random_padding(length):
     rng = np.random.default_rng()
     nums = rng.integers(0, 27, size=length)
     return list(nums)
+
+
+# compute index of coincidence
+def index_of_coincidence(x: list[int], y: list[int]):
+    if len(x) != len(y):
+        print(f"WARNING: x={x} and y={y} not the same length")
+
+    n = min(len(x), len(y))
+    N = max(len(x), len(y))
+    coincidences = 0
+    for i in range(n):
+        if x[i] == y[i]:
+            coincidences += 1
+
+    index = (1.0 / N) * coincidences
+    return index
+
+# compute index of coincidence for single sequence
+def single_index_of_coincidence(seq):
+    n = len(seq)
+    if n < 2:
+        return 0.0
+
+    frequencies = Counter(seq)
+    numerator = sum(f * (f-1) for f in frequencies.values())
+    return numerator / (n * (n-1))
