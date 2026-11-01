@@ -1,50 +1,45 @@
 
+from utils import check_permutation, random_padding
 
-def transpose_encrypt(plaintext, k):
-    plaintext = plaintext.lower()
-    n = len(plaintext)
-    ciphertext = ['A'] * n
-    for i in range(n):
-        if plaintext[i].isalpha():
-            ciphertext[(i+k) % n] = plaintext[i].upper()
-        else:
-            ciphertext[(i+k) % n] = plaintext[i]
-    return ''.join(ciphertext)
 
-def transpose_decrypt(ciphertext, k=None, brute=False):
+def transpose_encrypt(plaintext: list[int], permutation: list[int]):
+    print("The plaintext will be 1-indexed: 123...n 123...n 123...n.")
 
-    # No helpful arguments given
-    if k is None and brute == False:
-        raise ValueError('Please enter a value for k or select the brute force option (ex: transpose_decrypt("abcde", k=5) or transpose_decrypt("abcde", brute=True)!')
 
-    # k is not an integer:
-    if not isinstance(k, int) and brute == False:
-        raise ValueError(f'Make sure k={k} is an integer!')
+    valid_permutation = check_permutation(permutation)
+    if not valid_permutation:
+        raise ValueError(f"The permutation given is not a valid permutation: {permutation}")
 
-    ciphertext = ciphertext.upper()
+    n = len(permutation)
+    if len(plaintext) % n != 0:
+        print(f"WARNING: The length of the plaintext is not compatible with the length of the permutation. Adding padding...")
+        padding_size = len(plaintext) % n
+        padding = random_padding(padding_size)
+        plaintext += padding
 
-    # standard decryption where k is known
-    if isinstance(k, int) and brute == False:
-        n = len(ciphertext)
-        plaintext = ['a'] * n
-        for i in range(n):
-            if ciphertext[i].isalpha():
-                plaintext[(i-k) % n] = ciphertext[i].lower()
-            else:
-                plaintext[(i-k) % n] = ciphertext[i]
-        return ''.join(plaintext)
+    def apply_permutation(nums, permutation):
+        return [nums[i] for i in permutation]
 
-    # brute force decryption
-    if brute == True:
-        decryptions = {}
-        n = len(ciphertext)
-        for i in range(n):
-            plaintext = ["A"] * n
-            for j in range(n):
-                if ciphertext[j].isalpha():
-                    plaintext[(j-i) % n] = ciphertext[j].lower()
-                else:
-                    plaintext[(j-i) % n] = ciphertext[i]
-            plaintext = ''.join(plaintext).lower()
-            decryptions[i] = plaintext
-        return decryptions
+    blocks = len(plaintext) // n
+    ciphertext = []
+    for block in range(blocks):
+        permuted_block = apply_permutation(plaintext[block * n: (block+1)*n])
+        ciphertext += permuted_block
+
+    return ciphertext
+
+
+def transpose_decrypt(ciphertext: list[int], permutation: list[int]):
+
+    # Just need to find the inverse permutation
+    # permutation_inv(permutation(nums)) = nums
+
+    n = len(permutation)
+    inverse = [0] + [0] * n
+    for idx, num in enumerate([0] + permutation):
+        inverse[num] = idx
+    inverse = inverse[1:]
+
+    plaintext = transpose_encrypt(ciphertext, inverse)
+
+    return plaintext

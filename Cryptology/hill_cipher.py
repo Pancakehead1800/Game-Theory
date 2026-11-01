@@ -6,5 +6,8 @@ def hill_encrypt(plaintext, K, N):
     pass
 
 
-def hill_decrypt(plaintext, K=None, N=None, brute=False):
+def hill_decrypt(plaintext, K, N):
+    pass
+
+def hill_decrypt_brute(plaintext):
     pass
