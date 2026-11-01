@@ -38,29 +38,24 @@ class Edge:
 class PayoffMatrix:
     def __init__(
         self,
-        matrix,
-        players=None,
-        rules=None
+        matrix, # m x n x 2 matrix representing the matrix of player utilities
+        players=None, # tuple[float, float] representing probabilities of it being someone's turn
+        rules=None # tuple[Rule, Rule] representing the default decision rules for each player
     ):
-
         # -------- CREATE MATRIX -------- #
-        self.matrix = matrix
-        if self.matrix is not None:
-            # Hope the values are floats
-            try:
-                self.matrix = np.array(matrix, dtype=float)
-            except (ValueError, TypeError) as e:
-                raise ValueError(f"Data contains non-numeric entries: {e}")
+        # Convert matrix into numpy array
+        try:
+            self.matrix = np.array(matrix, dtype=float)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Data contains non-numeric entries: {e}")
 
-            # Verify the array has 3 dimensions
-            if self.matrix.ndim != 3:
-                raise ValueError(f"Expected 3D array, but got {self.matrix.ndim}D array")
+        # Verify the array has 3 dimensions
+        if self.matrix.ndim != 3:
+            raise ValueError(f"Expected 3D array, but got {self.matrix.ndim}D array")
 
-            # Verify the final dimension is 2 (for 2x2 players)
-            if self.matrix.shape[2] != 2:
-                raise ValueError(f"Expected the last dimension to be 2, but got {self.matrix.shape[2]} (Shape: {self.matrix.shape})")
-        else:
-            raise ValueError("Please provide a payoff matrix! It should be size N x M x 2")
+        # Verify the final dimension is 2 (for 2x2 players)
+        if self.matrix.shape[2] != 2:
+            raise ValueError(f"Expected the last dimension to be 2, but got {self.matrix.shape[2]} (Shape: {self.matrix.shape})")
 
         # -------- CREATE PLAYER PROBABILITIES -------- #
         # self.matrix.shape = (m, n, 2)
@@ -103,7 +98,6 @@ class PayoffMatrix:
             raise ValueError(f"Player must be 0 or 1 (got {player})")
 
 
-
     # Returns array of probabilities
     def get_player_action_probabilities(self, state, player):
         probabilities = self.rules[player].distribution(self, state, player)
@@ -111,7 +105,7 @@ class PayoffMatrix:
 
 
     # Return a weighted, directed graph using dfs
-    def simulate_state(self, state) -> dict[tuple: Edge]:
+    def simulate_state(self, state, tolerance=1e-2) -> dict[tuple: Edge]:
         graph = defaultdict(list)
         seen = set()
 
@@ -126,7 +120,6 @@ class PayoffMatrix:
             player_1_probabilities = self.get_player_action_probabilities(state, 1) * self.players[1]
 
             # Player 0 probabilities
-            tolerance = 5e-2
             for action, probability in enumerate(player_0_probabilities):
                 if probability > tolerance:
                     target = (action, state[1])
@@ -170,6 +163,13 @@ class PayoffMatrix:
     def get_payoff_matrix(self):
         pass
 
+
+    # Create a random m x n x 2 matri
+    def create_random_matrix(self, m, n, lower_bound, upper_bound) -> None:
+        matrix = np.random.randint(low=-10, high=10, size=(m,n,2), dtype=int)
+        self.m = m
+        self.n = n
+        self.matrix = matrix
 
 
 if __name__ == "__main__":

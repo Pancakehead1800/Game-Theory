@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <meta content="Edit a two-player payoff matrix and explore its response dynamics." name="description"/>
+  <title>
+   State / Space — Payoff explorer
+  </title>
+  <link href="algory.css" rel="stylesheet"/>
+  <link href="styles.css" rel="stylesheet"/>
+  <script src="app.js" type="module">
+  </script>
+ </head>
+ <body class="algory">
+  <div class="app">
+   <header>
+    <div class="brand">
+     <span aria-hidden="true" class="brand-mark">
+      ▦
+     </span>
+     <div>
+      <h1>
+       State
+       <span>
+        /
+       </span>
+       Space
+      </h1>
+      <p>
+       Two players. Every possible next move.
+      </p>
+     </div>
+    </div>
+    <span class="chip status-live" id="source-chip">
+     PYTHON API
+    </span>
+   </header>
+   <main class="layout">
+    <section aria-labelledby="matrix-title" class="panel workspace">
+     <div class="section-head">
+      <div>
+       <div class="label">
+        01 / State space
+       </div>
+       <h2 id="matrix-title">
+        The payoff matrix
+       </h2>
+      </div>
+      <span class="chip" id="shape">
+      </span>
+     </div>
+     <div class="matrix-tools">
+      <label>
+       Rows · m
+       <input class="input" id="rows" max="12" min="1" required="" type="number" value="3"/>
+      </label>
+      <span aria-hidden="true" class="times">
+       ×
+      </span>
+      <label>
+       Columns · n
+       <input class="input" id="cols" max="12" min="1" required="" type="number" value="3"/>
+      </label>
+      <button class="button button-secondary" id="resize">
+       Resize
+      </button>
+      <button class="button button-secondary" id="randomize">
+       ↻ Randomize
+      </button>
+      <label class="example-label">
+       Example
+       <select class="input" id="example">
+        <option disabled="" value="custom">
+         Custom matrix
+        </option>
+        <option selected="" value="cycle">
+         Rock · paper · scissors
+        </option>
+        <option value="coordination">
+         Coordination
+        </option>
+        <option value="dilemma">
+         Prisoner’s dilemma
+        </option>
+       </select>
+      </label>
+     </div>
+     <p class="hint">
+      Click a cell to choose the start. Edit either payoff directly. Resizing preserves overlapping cells.
+     </p>
+     <div class="axis-top">
+      PLAYER 2
+      <span>
+       → columns · upper-right payoff
+      </span>
+     </div>
+     <div class="matrix-scroll">
+      <div id="matrix-stage">
+       <div aria-label="Payoff matrix" id="matrix">
+       </div>
+       <svg aria-hidden="true" id="flows">
+       </svg>
+      </div>
+     </div>
+     <div class="matrix-footer">
+      <span>
+       <i class="dot p1">
+       </i>
+       P1 · rows · lower-left
+       <i class="dot p2">
+       </i>
+       P2 · columns · upper-right
+      </span>
+      <span class="heat-key">
+       Probability
+       <i>
+       </i>
+       0–100%
+      </span>
+     </div>
+     <div class="playback">
+      <div class="playback-buttons">
+       <button class="button" id="simulate">
+        ▶ Simulate
+       </button>
+       <button class="button button-secondary" id="step">
+        Step →
+       </button>
+       <button class="button button-ghost" id="reset">
+        Reset
+       </button>
+       <span class="number" id="step-label">
+        Step 00 / 40
+       </span>
+      </div>
+      <label class="timeline-label" for="timeline">
+       Simulation timeline
+      </label>
+      <input disabled="" id="timeline" max="40" min="0" type="range" value="0"/>
+      <div class="timeline-ends">
+       <span>
+        Initial state
+       </span>
+       <span id="end-label">
+        40 updates
+       </span>
+      </div>
+     </div>
+     <p aria-live="polite" class="notification" id="status" role="status">
+      Choose a starting cell, then simulate.
+     </p>
+    </section>
+    <section aria-label="Current distribution" class="metrics">
+     <div class="panel">
+      <div class="label">
+       Selected start
+      </div>
+      <div class="metric-value" id="start-metric">
+      </div>
+      <small>
+       Row, column · indexed from 1
+      </small>
+     </div>
+     <div class="panel">
+      <div class="label">
+       Most likely state
+      </div>
+      <div class="metric-value" id="likely-metric">
+      </div>
+      <small id="likely-detail">
+      </small>
+     </div>
+     <div class="panel">
+      <div class="label">
+       Expected payoff
+      </div>
+      <div class="metric-value">
+       <span class="p1-text" id="u1">
+       </span>
+       <span class="slash">
+        /
+       </span>
+       <span class="p2-text" id="u2">
+       </span>
+      </div>
+      <small>
+       Player 1 / Player 2
+      </small>
+     </div>
+    </section>
+    <aside class="settings panel">
+     <div class="label">
+      02 / Dynamics
+     </div>
+     <h2>
+      Response controls
+     </h2>
+     <div class="divider">
+     </div>
+     <label for="player-prob">
+      Who responds next?
+     </label>
+     <div class="split-label">
+      <span class="p1-text">
+       P1
+       <b id="p1-share">
+        50%
+       </b>
+      </span>
+      <span class="p2-text">
+       P2
+       <b id="p2-share">
+        50%
+       </b>
+      </span>
+     </div>
+     <input id="player-prob" max="100" min="0" type="range" value="50"/>
+     <p class="hint">
+      One player updates per step. The other player keeps their action.
+     </p>
+     <label>
+      Player 1 decision rule
+      <select class="input" id="rule1">
+       <option value="greedy_best">
+        First best action
+       </option>
+       <option selected="" value="uniform_best">
+        Random among best
+       </option>
+      </select>
+     </label>
+     <label>
+      Player 2 decision rule
+      <select class="input" id="rule2">
+       <option value="greedy_best">
+        First best action
+       </option>
+       <option selected="" value="uniform_best">
+        Random among best
+       </option>
+      </select>
+     </label>
+     <p class="hint">
+      “First” breaks ties by action order. “Random” splits probability equally across tied best actions.
+     </p>
+     <div class="divider">
+     </div>
+     <div class="field-pair">
+      <label>
+       Steps
+       <input class="input" id="steps" max="200" min="1" required="" type="number" value="40"/>
+      </label>
+      <label>
+       Playback
+       <select class="input" id="speed">
+        <option value="1200">
+         Slow
+        </option>
+        <option selected="" value="650">
+         Normal
+        </option>
+        <option value="250">
+         Fast
+        </option>
+       </select>
+      </label>
+     </div>
+     <label class="check">
+      <input checked="" id="show-flows" type="checkbox"/>
+      Show probability flow
+     </label>
+     <div class="reading">
+      <div class="label">
+       Reading the animation
+      </div>
+      <p>
+       Brighter cells are more likely. Percentages show the full distribution, not a single random path.
+      </p>
+      <p>
+       Blue arrows are P1 moves; purple arrows are P2 moves. Thicker arrows carry more probability. Staying in place keeps mass in the same cell.
+      </p>
+     </div>
+    </aside>
+    <section class="panel history">
+     <div class="section-head">
+      <div>
+       <div class="label">
+        03 / Over time
+       </div>
+       <h2>
+        Expected payoff
+       </h2>
+      </div>
+      <span class="chart-legend">
+       <span class="p1-text">
+        — Player 1
+       </span>
+       <span class="p2-text">
+        — Player 2
+       </span>
+      </span>
+     </div>
+     <svg aria-label="Expected payoff over simulation steps" id="chart" role="img" viewbox="0 0 900 150">
+     </svg>
+     <p class="hint">
+      Averages across the probability distribution at each step. Neither player is guaranteed this payoff in a single run.
+     </p>
+    </section>
+   </main>
+   <footer>
+    STATE / SPACE
+    <span>
+     Payoff matrix laboratory · asynchronous responses
+    </span>
+   </footer>
+  </div>
+ </body>
+</html>

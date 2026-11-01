@@ -38,9 +38,10 @@ class UniformBestRule(DecisionRule):
 
         # Find the first occurance of the value (the first/only element of the tuple)
         best_actions = utilities == best_utility
+        n_actions = best_actions.sum()
 
         # Determine probabilities
-        probabilities = best_actions.astype(float) / float(best_actions.sum())
+        probabilities = best_actions.astype(float) / float(n_actions)
 
         return probabilities
 
@@ -50,8 +51,16 @@ class RandomBeneficialRule(DecisionRule):
     def distribution(self, game, state, player):
         # Get the player's possible utilities
         utilities = game.utilities_for_player(state, player)
+        current_utility = game.utility(state, player)
 
         # Find which actions provide higher utility
+        better_actions = utilities > current_utility
+        choices = better_actions.sum()
+
+        # Determine probabilities
+        probabilities = better_actions.astype(float) / float(choices)
+
+        return probabilities
 
 
 # Rule:

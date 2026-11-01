@@ -1,0 +1,286 @@
+/* ALGORY UI v1.1 — Blue & Purple. Apply class="algory" to the app root.
+   Fonts are fallbacks, not bundled assets. Retain semantic HTML and labels. */
+.algory {
+  color-scheme: dark;
+  --bg: #070A12;
+  --surface: #0C1020;
+  --surface-alt: #12172A;
+  --card: #17162B;
+  --border: #252D49;
+  --border-active: #7160B5;
+  --blue-primary: #60A5FA;
+  --purple-accent: #A78BFA;
+  --purple-dark: #37306B;
+  --text-primary: #F5F5F7;
+  --text-secondary: #A3A3AA;
+  --text-muted: #6B6B73;
+  --success: #39D98A;
+  --warning: #F5B841;
+  --danger: #FF3B5C;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --font-ui: Inter, 'Exo 2', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.algory *, .algory *::before, .algory *::after {
+  box-sizing: border-box;
+}
+
+.algory :is(h1,h2,h3) {
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.algory .label {
+  font: 0.75rem/1.5 var(--font-data);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.algory :is(.number,.metric-value) {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.algory .metric-value {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.2;
+}
+
+.algory .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--space-6);
+  min-width: 0;
+}
+
+.algory .panel-emphasis {
+  border-color: var(--border-active);
+}
+
+/* DOM order: workspace, metrics, left panel, right panel. */
+.algory .console {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0,1fr) minmax(0,2.5fr) minmax(0,1fr);
+  grid-template-areas: 'left main right' 'metrics metrics metrics';
+}
+
+.algory .workspace {
+  grid-area: main;
+  min-width: 0;
+}
+
+.algory .left-panel {
+  grid-area: left;
+  min-width: 0;
+}
+
+.algory .right-panel {
+  grid-area: right;
+  min-width: 0;
+}
+
+.algory .metrics {
+  grid-area: metrics;
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,10rem),1fr));
+  gap: var(--space-4);
+}
+
+.algory .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--purple-accent);
+  border-radius: 4px;
+  background: var(--blue-primary);
+  color: var(--bg);
+  font: 600 0.875rem/1.4 var(--font-data);
+  cursor: pointer;
+}
+
+.algory .button-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.algory .button-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+
+.algory .button:hover:not(:disabled) {
+  border-color: var(--blue-primary);
+  filter: brightness(1.08);
+}
+
+.algory :disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.algory :focus-visible {
+  outline: 2px solid var(--blue-primary);
+  outline-offset: 3px;
+}
+
+.algory .input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.algory .input::placeholder {
+  color: var(--text-muted);
+}
+
+.algory .input:focus {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 20px rgb(167 139 250 / 0.12);
+}
+
+.algory .nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.algory .nav-item {
+  padding: 8px 12px;
+  min-height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: none;
+}
+
+.algory .nav-item:is([aria-current='page'],[aria-selected='true']) {
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  box-shadow: 0 0 20px rgb(167 139 250 / 0.12);
+}
+
+.algory .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.algory table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.algory :is(th,td) {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.algory th {
+  color: var(--text-secondary);
+  font: 0.75rem/1.5 var(--font-data);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.algory td {
+  font-size: 0.875rem;
+}
+
+.algory td.number {
+  text-align: right;
+}
+
+.algory .chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: 0.75rem/1.5 var(--font-data);
+  color: var(--text-secondary);
+}
+
+.algory .status-live {
+  color: var(--blue-primary);
+}
+
+.algory :is(.status-loss,.status-danger) {
+  color: var(--danger);
+}
+
+.algory :is(.status-profit,.status-success) {
+  color: var(--success);
+}
+
+.algory .status-warning {
+  color: var(--warning);
+}
+
+.algory .notification {
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--notice-color,var(--text-secondary));
+  border-radius: 4px;
+}
+
+.algory .chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.algory .chart-series-primary {
+  fill: none;
+  stroke: var(--blue-primary);
+  stroke-width: 2;
+}
+
+.algory .chart-series-secondary {
+  fill: none;
+  stroke: var(--purple-accent);
+  stroke-width: 2;
+}
+
+@media (max-width: 1100px) {
+  .algory .console {
+    grid-template-columns: minmax(0,2fr) minmax(0,1fr);
+    grid-template-areas: 'main left' 'metrics metrics' 'right right';
+  }
+}
+
+@media (max-width: 720px) {
+  .algory .console {
+    grid-template-columns: minmax(0,1fr);
+    grid-template-areas: 'main' 'metrics' 'left' 'right';
+  }
+  .algory .panel {
+    padding: var(--space-4);
+  }
+}
