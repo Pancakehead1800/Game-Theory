@@ -1,7 +1,8 @@
-"""Local frontend server and payoff-matrix API. Run: python3 Payoff-Matrix/api.py.
-
+"""
+Local frontend server and payoff-matrix API. 
 The frontend does distribution propagation and animation; Python supplies edges.
 Game calculations use NumPy; HTTP hosting uses the Python standard library.
+To start the server, run: python3 Payoff-Matrix/api.py.
 """
 
 import argparse
@@ -27,10 +28,10 @@ RULES = {
 
 
 def build_transition_graph(matrix, start, players, rules):
-    """Run the game and return one node per state, with its outgoing edges.
-
-    State and player indices are zero-based. Edge probabilities already include
-    the chance of selecting that player. See frontend/README.md for the contract.
+    """
+    Run the game and return one node per state, with its outgoing edges.
+    State and player indices are zero-based. 
+    Edge probabilities already include the chance of selecting that player.
     """
 
     # Point the strings in "rules" to the actual objects
@@ -59,6 +60,7 @@ def build_transition_graph(matrix, start, players, rules):
     return res
 
 
+# no clue but prob important
 def validate_request(data):
     """Transport validation only; no game logic is implemented here."""
     def finite_number(value):
@@ -96,6 +98,7 @@ def validate_request(data):
     return matrix, start, players, rules
 
 
+# imagine dealing with non-python stuff
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(FRONTEND), **kwargs)
@@ -130,6 +133,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(500, {"error": "Simulation failed. See the Python server terminal."})
 
 
+# this def important
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
