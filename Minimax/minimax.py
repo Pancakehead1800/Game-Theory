@@ -38,7 +38,6 @@ class Minimax:
         # ======== BRUTE FORCE IMPLEMENTATION ======== #
 
         # Create the state tree
-    
         def brute_force(node: State, is_max: bool, depth: int) -> float:
 
             # Edge cases
@@ -94,6 +93,7 @@ class Minimax:
                 return min_eval
 
 
+        # I wonder which method we'll use...
         # return brute_force(self.tree, self.is_max, self.depth)
         return alpha_beta(self.tree, self.is_max, self.depth)
     

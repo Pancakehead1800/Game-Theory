@@ -2,31 +2,19 @@
 import math
 
 
-# find units of Z/n
-def units_of_field(n):
-    units = []
-    for x in range(n):
-        if gcd(x, n) == 1:
-            units.append(x)
-    return units
-
+# ================ ESSENTIAL NUMBER THEORY ================ #
 
 # find GCD of n, m
 def gcd(n, m):
-    # Edge cases
-    if n < m:
-        return gcd(m, n)
-    if n == m:
-        return n
+    if n == 0 and m == 0:
+        raise ValueError("gcd(0, 0) is undefined")
 
-    # Base case
+    n, m = abs(n), abs(m)
+
     if m == 0:
         return n
 
-    # Recursion case
-    next_m = n % m
-    next_n = m
-    return gcd(next_n, next_m)
+    return gcd(m, n % m)
 
 
 # find lcm of n, m
@@ -40,6 +28,7 @@ def lcm(n, m):
 def inv(a, m):
     if gcd(a, m) != 1:
         raise ValueError(f"a={a} has no modular inverse modulo m={m}")
+    
     r0, r1 = a, m # remainders
     s0, s1 = 1, 0 # coefficients
 
@@ -73,6 +62,81 @@ def exp(x, n, mod=None):
 
     return res
 
+
+# ================ UNITS / PRIMES ================ #
+
+
+# find units of Z/n
+def units_of_field(n):
+    units = []
+    for x in range(n):
+        if gcd(x, n) == 1:
+            units.append(x)
+    return units
+
+
+# check if n is prime
+def is_prime(n):
+    if n < 2:
+        return False
+    if n == 2 or n == 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+
+    for i in range(5, math.isqrt(n) + 1, 6):
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+
+    return True
+
+
+# generate primes up to n
+def generate_primes(n):
+    # use sieve of eratosthenes
+    sieve = [True] * (n + 1)
+    sieve[0] = sieve[1] = False
+
+    for i in range(2, math.isqrt(n) + 1):
+        if sieve[i]:
+            for j in range(i * i, n + 1, i):
+                sieve[j] = False
+
+    return [i for i in range(n+1) if sieve[i]]
+
+
+# ================ ADVANCED NUMBER THEORY ================ #
+
+# check if discrete log is valid...?
+def check_discrete_log(l, x, g, n):
+    return True if exp(g, l, n) == x else False
+
+
+# compute the totient of n
+def totient(n):
+    factors = prime_factorization(n)
+    res = 1
+    for p, e in factors:
+        res *= (exp(p, e-1) * (p-1))
+    return res
+
+
+# solve a linear congruence of the form a*x = b mod n
+def solve_linear_congruence(a, b, n):
+    g = gcd(a, n)
+    if b % g == 0:
+        a //= g
+        b //= g
+        n //= g
+
+    a_inv = inv(a, n)
+    x = (a_inv * b) % n
+    return x
+
+
+
+# ================ FACTORING ================ #
+
 # find the factors of n
 def get_all_factors(n):
     factors = []
@@ -85,13 +149,38 @@ def get_all_factors(n):
     return factors
 
 
-# find exponent of prime factor p of n
+# find exponent of some factor p of n
 def exponent_of_factor(n: int, p: int) -> tuple[int, int]:
     res = 0
     while n % p == 0:
         n //= p
         res += 1
     return res, n
+
+
+# prime factorization of n
+def prime_factorization(n) -> list[tuple[int, int]]:
+    factors = []
+
+    # check p=2
+    exp2, n = exponent_of_factor(n, 2)
+    if exp2 > 0:
+        factors.append((2, exp2))
+
+    k = 3
+    while k * k <= n:
+        expk, n = exponent_of_factor(n, k)
+        if expk > 0:
+            factors.append((k, expk))
+        k += 2
+
+    if n > 1:
+        factors.append((n, 1))
+
+    return factors
+
+        
+# ================ QUADRATIC RESIDUES ================ #
 
 
 # Apply Euler's Criterion
@@ -140,11 +229,10 @@ def principal_sqrt(y, p):
 
     # assume that h = y * g^E is in H = {1, a^(2^s), a^(2*2^s), ..., a^((m-1)2^s)}... hehe... what?
     h = (y * exp(g, E, p)) % p
-    y = (h * exp(g, p-1-E))
+    y = (h * exp(g, p-1-E, p)) % p
     x = (exp(h, (m+1)//2, p) * exp(g, (p-1-E)//2, p)) % p
 
     return x, p-x
-
 
 def nth_root(y, n, p):
 
@@ -164,8 +252,6 @@ def nth_root(y, n, p):
     print("Too difficult")
 
 
-def totient(n):
-    pass
 
 def is_primitive_root(g, n):
     pwrs = [1]
@@ -174,11 +260,6 @@ def is_primitive_root(g, n):
 
     units = units_of_field(n)
     return len(set(pwrs)) == len(units)
-
-
-
-def discrete_log(l, x, g, n):
-    return True if exp(g, l, n) == x % n else False
     
 
 
@@ -186,30 +267,34 @@ def discrete_log(l, x, g, n):
 
 
 # TESTING TESTING TESTING
+if __name__ == "__main__":
+    # 2^57 mod 59:
+    print(exp(2, 57, 59))
 
-# 2^57 mod 59:
-print(exp(2, 57, 59))
+    # principal sqrt of 3 mod 107
+    print(principal_sqrt(3, 107))
 
-# principal sqrt of 3 mod 107
-print(principal_sqrt(3, 107))
+    # principal sqrt of 331 mod 449
+    print(principal_sqrt(331, 449))
 
-# principal sqrt of 331 mod 449
-print(principal_sqrt(331, 449))
+    # gcd(289572, 92848)
+    print(gcd(289572, 92848))
 
-# gcd(289572, 92848)
-print(gcd(289572, 92848))
+    # multiplicative inverse to 19 mod 24
+    print(inv(19, 24))
 
-# multiplicative inverse to 19 mod 24
-print(inv(19, 24))
+    # nth roots
+    print(nth_root(14, 3, 103))
+    print(nth_root(2, 3, 101))
+    print(nth_root(3, 7, 11))
 
-# nth roots
-print(nth_root(14, 3, 103))
-print(nth_root(2, 3, 101))
-print(nth_root(3, 7, 11))
+    # sqrt of 2 mod 17
+    print(principal_sqrt(2, 17))
 
-# sqrt of 2 mod 17
-print(principal_sqrt(2, 17))
+    # 3 primitive generator of Z/7?
+    print(units_of_field(7))
+    print(is_primitive_root(3, 7))
 
-# 3 primitive generator of Z/7?
-print(units_of_field(7))
-print(is_primitive_root(3, 7))
+    # totient function
+    print(totient(12))
+    print(totient(100))
