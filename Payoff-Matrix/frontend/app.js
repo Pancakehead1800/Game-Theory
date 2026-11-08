@@ -1,21 +1,12 @@
-import { validateGraph, evolve } from './dynamics.mjs';
 import { drawFlows, drawPayoffChart } from './charts.js';
+import { setupDamping } from './damping.js?v=damping-2';
 
 const element = id => document.getElementById(id);
-const PRESETS = {
-  cycle: [
-    [[0, 0], [-1, 1], [1, -1]],
-    [[1, -1], [0, 0], [-1, 1]],
-    [[-1, 1], [1, -1], [0, 0]],
-  ],
-  coordination: [[[3, 2], [0, 0]], [[0, 0], [2, 3]]],
-  dilemma: [[[2, 2], [-1, 3]], [[3, -1], [0, 0]]],
-};
-
-// Editor and playback state. Graphs and frames are discarded after game edits.
-let matrix = structuredClone(PRESETS.cycle);
+let examples = new Map();
+let catalogReady = false;
+// Editing and playback only: all computed results arrive from Python.
+let matrix = [[[0, 0]]];
 let start = [0, 0];
-let graph = null;
 let frames = [];
 let currentStep = 0;
 let playing = false;
@@ -46,14 +37,14 @@ function pause() {
 }
 
 function setLoading(loading) {
-  element('simulate').disabled = loading;
-  element('step').disabled = loading;
+  element('simulate').disabled = loading || !catalogReady;
+  element('step').disabled = loading || !catalogReady;
 }
 
 function initialFrame() {
   const mass = Array(matrix.length * matrix[0].length).fill(0);
   mass[start[0] * matrix[0].length + start[1]] = 1;
-  return { mass, utilities: matrix[start[0]][start[1]] };
+  return { mass, utilities: matrix[start[0]][start[1]], most_likely: start[0] * matrix[0].length + start[1], maximum: 1, ties: 1, flows: [] };
 }
 
 function invalidateSimulation(message = 'Ready. Choose a starting cell, then simulate.') {
@@ -62,7 +53,6 @@ function invalidateSimulation(message = 'Ready. Choose a starting cell, then sim
   pendingRequest?.abort();
   pendingRequest = null;
   pause();
-  graph = null;
   frames = [];
   currentStep = 0;
   setLoading(false);
@@ -160,7 +150,7 @@ function heatColor(probability) {
 }
 
 function renderFlows() {
-  drawFlows(graph, frames[currentStep - 1], matrix[0].length, element('show-flows').checked);
+  drawFlows(frames[currentStep]?.flows, element('show-flows').checked);
 }
 
 function renderFrame() {
@@ -179,9 +169,7 @@ function renderFrame() {
     cell.style.backgroundColor = heatColor(probability);
   }
 
-  const maximum = Math.max(...frame.mass);
-  const mostLikely = frame.mass.indexOf(maximum);
-  const ties = frame.mass.filter(probability => Math.abs(probability - maximum) < 1e-10).length;
+  const { maximum, most_likely: mostLikely, ties } = frame;
   const tieLabel = ties > 1 ? ` · ${ties} states tied` : '';
   element('start-metric').textContent = stateLabel(startIndex);
   element('likely-metric').textContent = stateLabel(mostLikely);
@@ -201,6 +189,7 @@ function renderFrame() {
 // API and playback ----------------------------------------------------------
 
 function validateInputs() {
+  getDamping();
   const inputs = [...document.querySelectorAll('.utility'), element('steps')];
   for (const input of inputs) {
     if (!input.checkValidity()) {
@@ -210,28 +199,32 @@ function validateInputs() {
   }
 }
 
-async function requestGraph(signal) {
-  const playerProbability = Number(element('player-prob').value) / 100;
-  const response = await fetch('/api/simulate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+// One HTTP helper for the three endpoints. Backend errors may be plain text.
+async function request(path, { data, signal } = {}) {
+  const response = await fetch(path, {
+    method: data === undefined ? 'GET' : 'POST',
+    headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: data === undefined ? undefined : JSON.stringify(data),
     signal,
-    body: JSON.stringify({
-      matrix,
-      start,
-      players: [playerProbability, 1 - playerProbability],
-      rules: [element('rule1').value, element('rule2').value],
-    }),
+    cache: 'no-store',
   });
+  const text = await response.text();
+  let result;
+  try { result = JSON.parse(text); } catch { /* Report HTTP failures below. */ }
+  if (!response.ok) throw new Error(apiError(result, response.status, path));
+  if (!result) throw new Error(`${path} did not return JSON. Open this page through api.py.`);
+  return result;
+}
 
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error('The API did not return JSON. Start api.py and open its local URL.');
-  }
-  if (!response.ok) throw new Error(data.error || `API error ${response.status}`);
-  return data;
+function requestSimulation(signal) {
+  const playerProbability = Number(element('player-prob').value) / 100;
+  return request('/api/simulate', { signal, data: {
+    matrix, start,
+    players: [playerProbability, 1 - playerProbability],
+    rules: [element('rule1').value, element('rule2').value],
+    damping: getDamping(),
+    steps: Number(element('steps').value),
+  }});
 }
 
 async function prepareSimulation() {
@@ -242,16 +235,18 @@ async function prepareSimulation() {
   const controller = new AbortController();
   pendingRequest = controller;
   setLoading(true);
-  showStatus('Requesting the response graph from Python…');
+  showStatus('Computing simulation in Python…');
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const data = await requestGraph(controller.signal);
+    const data = await requestSimulation(controller.signal);
     if (requestedRevision !== revision) return false;
-    graph = validateGraph(data, matrix.length, matrix[0].length, start);
-    frames = evolve(graph, matrix, start, Number(element('steps').value));
+    if (!Array.isArray(data.frames) || data.frames.length !== Number(element('steps').value) + 1) {
+      throw new Error('The server returned an incomplete simulation. Restart api.py and reload.');
+    }
+    frames = data.frames;
     element('timeline').disabled = false;
-    showStatus('Python graph loaded · animating its probability distribution.');
+    showStatus('Simulation ready · playing results from Python.');
     return true;
   } finally {
     clearTimeout(timeout);
@@ -289,11 +284,11 @@ async function runSimulation(singleStep = false) {
     if (singleStep) {
       currentStep++;
       renderFrame();
-      showStatus(`Paused at step ${currentStep}. Showing probabilities from the Python graph.`);
+      showStatus(`Paused at step ${currentStep}. Showing probabilities computed by Python.`);
       return;
     }
     playing = true;
-    showStatus('Playing the probability distribution from the Python graph.');
+    showStatus('Playing the probability distribution computed by Python.');
     document.body.classList.remove('paused');
     element('simulate').textContent = 'Ⅱ Pause';
     renderFrame();
@@ -327,17 +322,106 @@ function resizeMatrix() {
   renderMatrix();
 }
 
-function randomizeMatrix() {
-  const randomPayoff = () => Math.floor(Math.random() * 15) - 5;
-  for (const row of matrix) {
-    for (const cell of row) {
-      cell[0] = randomPayoff();
-      cell[1] = randomPayoff();
-    }
+function apiError(data, status, path) {
+  if (typeof data?.detail === 'string') return data.detail;
+  if (Array.isArray(data?.detail)) return data.detail.map(error => error.msg).join(' ');
+  return `${path} failed (HTTP ${status}). Check the traceback in your Python terminal.`;
+}
+
+async function randomizeMatrix() {
+  if (matrix.length < 2 || matrix[0].length < 2) {
+    showStatus('The random API needs at least 2 rows and 2 columns. Resize first.', true);
+    return;
   }
-  element('example').value = 'custom';
-  invalidateSimulation('Randomized payoffs from −5 to 9. Choose a start and simulate.');
-  renderMatrix();
+  invalidateSimulation('Generating a random game…');
+  const requestedRevision = revision;
+  const controller = new AbortController();
+  pendingRequest = controller;
+  setLoading(true);
+  element('randomize').disabled = true;
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const data = await request('/api/randomize', {
+      signal: controller.signal,
+      data: { m: matrix.length, n: matrix[0].length,
+        lower_bound: -10, upper_bound: 10,
+        seed: crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_001 },
+    });
+    if (requestedRevision !== revision) return;
+    if (!Array.isArray(data.matrix) || !Array.isArray(data.rules) || data.rules.length !== 2 ||
+        data.rules.some(rule => ![...element('rule1').options].some(option => option.value === rule))) {
+      throw new Error('Random API must return a matrix and two registered rule IDs.');
+    }
+    matrix = data.matrix;
+    start = data.start;
+    element('rule1').value = data.rules[0];
+    element('rule2').value = data.rules[1];
+    element('player-prob').value = data.players[0] * 100;
+    updatePlayerLabels();
+    element('damping-value').value = data.damping;
+    element('damping-value').dispatchEvent(new Event('input'));
+    element('example').value = 'custom';
+    renderMatrix();
+    showStatus('Random game loaded: payoffs, turn chances, rules and damping.');
+  } catch (error) {
+    if (requestedRevision === revision) showStatus(error.name === 'AbortError'
+      ? 'Random game request timed out. Try again.' : error.message, true);
+  } finally {
+    clearTimeout(timeout);
+    if (pendingRequest === controller) {
+      pendingRequest = null;
+      setLoading(false);
+    }
+    element('randomize').disabled = false;
+  }
+}
+
+function updatePlayerLabels() {
+  const probability = Number(element('player-prob').value);
+  element('p1-share').textContent = `${Number(probability.toFixed(4))}%`;
+  element('p2-share').textContent = `${Number((100 - probability).toFixed(4))}%`;
+}
+
+async function loadCatalog() {
+  setLoading(true);
+  element('example').disabled = true;
+  element('randomize').disabled = true;
+  const requestedRevision = revision;
+  element('retry-catalog').hidden = true;
+  showStatus('Loading examples and decision rules…');
+  try {
+    const data = await request('/api/catalog', { signal: AbortSignal.timeout(15000) });
+    if (!Array.isArray(data.examples) || !Array.isArray(data.rules) || !data.rules.length) {
+      throw new Error('The catalog needs examples and at least one decision rule.');
+    }
+    examples = new Map(data.examples.map(example => [example.id, example.matrix]));
+    element('example').replaceChildren(new Option('Custom matrix', 'custom'));
+    element('example').firstChild.disabled = true;
+    for (const example of data.examples) {
+      element('example').add(new Option(example.label, example.id));
+    }
+    for (const id of ['rule1', 'rule2']) {
+      element(id).replaceChildren(...data.rules.map(rule => new Option(rule.label, rule.id)));
+      if (data.rules.some(rule => rule.id === 'uniform_best')) element(id).value = 'uniform_best';
+      element(id).disabled = false;
+    }
+    catalogReady = true;
+    if (requestedRevision === revision && data.examples.length) {
+      element('example').value = data.examples[0].id;
+      matrix = structuredClone(data.examples[0].matrix);
+      renderMatrix();
+    } else {
+      element('example').value = 'custom';
+    }
+    showStatus('Ready. Choose a starting cell, then simulate.');
+  } catch (error) {
+    element('retry-catalog').hidden = false;
+    showStatus(`Could not load examples and rules. ${error.message}`, true);
+  } finally {
+    setLoading(false);
+    element('example').disabled = !catalogReady;
+    element('randomize').disabled = !catalogReady;
+  }
 }
 
 function resetPlayback() {
@@ -352,6 +436,7 @@ function resetPlayback() {
 }
 
 function bindControls() {
+  element('retry-catalog').addEventListener('click', loadCatalog);
   element('simulate').addEventListener('click', () => runSimulation());
   element('step').addEventListener('click', () => runSimulation(true));
   element('reset').addEventListener('click', resetPlayback);
@@ -365,23 +450,27 @@ function bindControls() {
     renderFrame();
   });
   element('example').addEventListener('change', () => {
-    matrix = structuredClone(PRESETS[element('example').value]);
+    matrix = structuredClone(examples.get(element('example').value));
     start = [0, 0];
     invalidateSimulation();
     renderMatrix();
   });
-  for (const id of ['rule1', 'rule2', 'steps']) {
+  for (const id of ['rule1', 'rule2']) {
     element(id).addEventListener('change', () => invalidateSimulation());
   }
+  element('steps').addEventListener('input', () => invalidateSimulation());
   element('player-prob').addEventListener('input', () => {
-    const probability = Number(element('player-prob').value);
-    element('p1-share').textContent = `${probability}%`;
-    element('p2-share').textContent = `${100 - probability}%`;
+    updatePlayerLabels();
     invalidateSimulation();
   });
 }
 
+const getDamping = setupDamping(() => {
+  invalidateSimulation('Damping changed. Simulate again to update the distribution.');
+});
 bindControls();
 new ResizeObserver(renderFlows).observe(element('matrix-stage'));
 renderMatrix();
 pause();
+
+loadCatalog();

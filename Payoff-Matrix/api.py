@@ -1,148 +1,179 @@
-"""
-Local frontend server and payoff-matrix API. 
-The frontend does distribution propagation and animation; Python supplies edges.
-Game calculations use NumPy; HTTP hosting uses the Python standard library.
-To start the server, run: python3 Payoff-Matrix/api.py.
-"""
+
 
 import argparse
-import json
 import math
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from payoff_matrix import PayoffMatrix
-from decision_rules import (
-    GreedyBestRule,
-    UniformBestRule,
-    RandomBeneficialRule,
-)
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
-FRONTEND = Path(__file__).parent / "frontend"
+from payoff_matrix import PayoffMatrix, create_random_data, RULES, EXAMPLES, get_example
+from decision_rules import GreedyBestRule, UniformBestRule, RandomBeneficialRule
 
-RULES = {
-    "greedy_best": GreedyBestRule,
-    "uniform_best": UniformBestRule,
-    "random_beneficial": RandomBeneficialRule
+app = FastAPI(title="Payoff Matrix", version="1.0.0")
+
+RULE_LABELS = {
+    "greedy_best": "First best action",
+    "uniform_best": "Random among best",
+    "random_beneficial": "Random among improvements",
+    "pure_random": "Complete random moves"
 }
 
 
-def build_transition_graph(matrix, start, players, rules):
-    """
-    Run the game and return one node per state, with its outgoing edges.
-    State and player indices are zero-based. 
-    Edge probabilities already include the chance of selecting that player.
-    """
+# ======== Endpoint functions ======== #
 
-    # Point the strings in "rules" to the actual objects
+# expose predefined examples and explain usable decision rules
+@app.get("/api/catalog")
+def catalog():
+    return {
+        "examples": [{
+            "id": key, 
+            "label": key.replace("_", " ").capitalize(),
+            "matrix": get_example(key)
+            } for key in EXAMPLES 
+        ],
+        "rules": [{
+            "id": key, 
+            "label": RULE_LABELS.get(key, key.replace("_", " "))
+            } for key in RULES 
+        ],
+    }
+
+
+# simulate some given graph
+@app.post("/api/simulate")
+def simulate(data: dict):
+    # get required values from data
+    matrix, start, players, rules, damping = prepare_matrix_data(data)
+    steps = data.get("steps", 40)
     rules = tuple(RULES[rule]() for rule in rules)
 
-    pm = PayoffMatrix(matrix, players=players, rules=rules)
-    transition_graph = pm.simulate_state(tuple(start))
+    # create and simulate matrix
+    pm = PayoffMatrix(matrix, players=players, rules=rules, damping=damping)
+    graph, frames = pm.simulate_frames(tuple(start), steps)
 
-    # Convert graph into JSON-serializable object
-    res = {"nodes": []}
-    for state, edges in transition_graph.items():
-        node = {
-            "state": list(state),
-            "edges": []
-        }
-
-        for edge in edges:
-            node["edges"].append({
-                "target": list(edge.target),
-                "probability": float(edge.probability),
-                "player": edge.player
-            })
-
-        res["nodes"].append(node)
-
-    return res
+    # create formatted result
+    return {
+        "nodes": [{
+            "state": state,
+            "edges": [{
+                "target": edge.target,
+                "probability": edge.probability,
+                "player": edge.player,
+                "pre_utility": edge.pre_utility,
+                "post_utility": edge.post_utility
+            } for edge in edges ],
+        } for state, edges in graph.items() ],
+        "frames": frames
+    }
 
 
-# no clue but prob important
-def validate_request(data):
-    """Transport validation only; no game logic is implemented here."""
-    def finite_number(value):
-        return type(value) in (float, int) and math.isfinite(value)
+# get a random configuration
+@app.post("/api/randomize")
+def get_random_data(data: dict):
+    # get random data
+    matrix, players, rules, damping = prepare_random_data(data)
 
+    return {"matrix": matrix.tolist(), 
+            "start": [0, 0],
+            "players": [float(p) for p in players],
+            "rules": rules, 
+            "damping": float(damping)}
+
+
+
+# ======== Functions for preparing data ======== #
+
+# prepare the random data inputs
+def prepare_random_data(data):
     if not isinstance(data, dict):
         raise ValueError("Request must be a JSON object.")
+
+    # helper function for checking numbers
+    def _finite_number(value):
+        return type(value) in (float, int) and abs(value) <= 1_000_000 and math.isfinite(value)
+
+    # check dimensions
+    m, n = data.get("m", 3), data.get("n", 3)
+    if not isinstance(m, int) or not _finite_number(m) or m < 2:
+        raise ValueError("Number of rows must be finite and at least 2")
+    if not isinstance(n, int) or not _finite_number(n) or n < 2:
+            raise ValueError("Number of columns must be finite and at least 2")
+
+    # check bounds
+    lower_bound, upper_bound = data.get("lower_bound", -10), data.get("upper_bound", 10)
+    if not isinstance(lower_bound, int) or not _finite_number(lower_bound):
+        raise ValueError("Lower bound must be a finite integer")
+    if not isinstance(upper_bound, int) or not _finite_number(upper_bound):
+        raise ValueError("Upper bound must be a finite integer")
+    if upper_bound < lower_bound:
+        raise ValueError("Upper bound must be greater than lower bound!")
+
+    # check seed
+    seed = data.get("seed", 42)
+    if not isinstance(seed, int) or not _finite_number(seed):
+        raise ValueError("Randomization seed is not a finite integer!")
+
+    random_matrix, random_players, random_rules, random_damping = create_random_data(m, n, lower_bound=lower_bound, upper_bound=upper_bound, seed=seed)
+    return random_matrix, random_players, random_rules, random_damping
+    
+    
+# prepare the matrix data input
+def prepare_matrix_data(data):
+    if not isinstance(data, dict):
+        raise ValueError("Request must be a JSON object.")
+
+    # helper function for checking numbers
+    def _finite_number(value):
+        return type(value) in (float, int) and abs(value) <= 1_000_000 and math.isfinite(value)
+
+    # get matrix data
     matrix = data.get("matrix")
-    if not isinstance(matrix, list) or not 1 <= len(matrix) <= 12:
-        raise ValueError("Matrix must have 1–12 rows.")
-    if not isinstance(matrix[0], list) or not 1 <= len(matrix[0]) <= 12:
-        raise ValueError("Matrix must have 1–12 columns.")
+    # check rows
+    if not isinstance(matrix, list) or not 1 <= len(matrix) <= 50:
+        raise ValueError("Matrix must have 1-50 rows")
+    # check columns
+    if not isinstance(matrix[0], list) or not 1 <= len(matrix[0]) <= 50:
+        raise ValueError("Matrix must have 1-50 columns.")
+    # check values in rows
     n = len(matrix[0])
     for row in matrix:
         if not isinstance(row, list) or len(row) != n:
             raise ValueError("Matrix must be rectangular.")
         for cell in row:
-            if (not isinstance(cell, list) or len(cell) != 2 or
-                    any(not finite_number(v) or abs(v) > 1_000_000 for v in cell)):
-                raise ValueError("Each cell needs two finite payoffs between −1,000,000 and 1,000,000.")
+            if (not isinstance(cell, list) or len(cell) != 2 or any(not _finite_number(v) or abs(v) > 1_000_000 for v in cell)):
+                raise ValueError("Each cell needs two finite payoffs between -1,000,000 and 1,000,000.")
+
+    # get starting point
     start = data.get("start")
-    if (not isinstance(start, list) or len(start) != 2 or
-            any(type(v) is not int for v in start) or
-            not 0 <= start[0] < len(matrix) or not 0 <= start[1] < n):
+    if (not isinstance(start, list) or len(start) != 2 or any(type(v) is not int for v in start) or not 0 <= start[0] < len(matrix) or not 0 <= start[1] < n):
         raise ValueError("Start must be a valid zero-based [row, column].")
+
+    # get player data
     players = data.get("players")
-    if (not isinstance(players, list) or len(players) != 2 or
-            any(not finite_number(p) or not 0 <= p <= 1 for p in players) or
-            abs(sum(players) - 1) > 1e-8):
+    if (not isinstance(players, list) or len(players) != 2 or any(not _finite_number(p) or not 0 <= p <= 1 for p in players) or abs(sum(players) - 1) > 1e-8):
         raise ValueError("Player probabilities must sum to 1.")
+
+    # get rule data
     rules = data.get("rules")
-    if (not isinstance(rules, list) or len(rules) != 2 or
-            any(not isinstance(rule, str) or rule not in RULES for rule in rules)):
+    if not isinstance(rules, list) or len(rules) != 2:
         raise ValueError(f"Choose one of these rules for each player: {', '.join(RULES)}.")
-    return matrix, start, players, rules
+
+    # get damping data
+    damping = data.get("damping", 0)
+    if not _finite_number(damping) or not 0 <= damping <= 1_000_000:
+        raise ValueError("Damping must be a finite number between 0 and 1,000,000.")
+
+    return matrix, start, players, rules, damping
 
 
-# imagine dealing with non-python stuff
-class Handler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(FRONTEND), **kwargs)
-
-    def send_json(self, status, payload):
-        body = json.dumps(payload, allow_nan=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_POST(self):
-        if self.path != "/api/simulate":
-            self.send_json(404, {"error": "Unknown endpoint."})
-            return
-        try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= 100_000:
-                raise ValueError("Request body must be 1–100,000 bytes.")
-            payload = json.loads(self.rfile.read(size))
-            args = validate_request(payload)
-        except (ValueError, OverflowError) as error:
-            self.send_json(400, {"error": str(error)})
-            return
-        try:
-            result = build_transition_graph(*args)
-            self.send_json(200, result)
-        except Exception as error:
-            self.log_error("Simulation failed: %s", error)
-            self.send_json(500, {"error": "Simulation failed. See the Python server terminal."})
+# mount the frontend
+app.mount("/", StaticFiles(directory=Path(__file__).parent / "frontend", html=True), name="frontend")
 
 
-# this def important
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"State / Space: http://127.0.0.1:{args.port}", flush=True)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
+    uvicorn.run(app, host="127.0.0.1", port=args.port)

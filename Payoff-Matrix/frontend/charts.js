@@ -1,7 +1,5 @@
 // SVG drawing only. Game rules and playback controls belong elsewhere.
 const PLAYER_COLORS = ['#60A5FA', '#A78BFA'];
-const MAX_ARROWS = 60;
-const MIN_ARROW_PROBABILITY = 0.0001;
 
 function svgElement(tag, attributes) {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -40,10 +38,10 @@ function drawArrow(svg, from, to, probability, player) {
   }));
 }
 
-export function drawFlows(graph, previousFrame, columns, visible) {
+export function drawFlows(flows, visible) {
   const svg = document.getElementById('flows');
   svg.replaceChildren();
-  if (!graph || !previousFrame || !visible) return;
+  if (!flows || !visible) return;
 
   const bounds = document.getElementById('matrix-stage').getBoundingClientRect();
   svg.setAttribute('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
@@ -52,21 +50,8 @@ export function drawFlows(graph, previousFrame, columns, visible) {
     return [box.x - bounds.x + box.width / 2, box.y - bounds.y + box.height / 2];
   });
 
-  const flows = [];
-  for (const [source, probability] of previousFrame.mass.entries()) {
-    if (probability === 0) continue;
-    for (const edge of graph.get(source)) {
-      const target = edge.target[0] * columns + edge.target[1];
-      const amount = probability * edge.probability;
-      if (source !== target && amount > MIN_ARROW_PROBABILITY) {
-        flows.push({ source, target, amount, player: edge.player });
-      }
-    }
-  }
-
-  // Limit visual clutter only; probability propagation includes every edge.
-  flows.sort((first, second) => second.amount - first.amount);
-  for (const flow of flows.slice(0, MAX_ARROWS)) {
+  // Python supplies the visible flows and their probability amounts.
+  for (const flow of flows) {
     drawArrow(svg, centers[flow.source], centers[flow.target], flow.amount, flow.player);
   }
 }
